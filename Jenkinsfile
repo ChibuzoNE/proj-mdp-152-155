@@ -1,22 +1,49 @@
 pipeline {
     agent any
+
     options {
         timeout(time: 30, unit: 'MINUTES')
     }
+
     stages {
         stage('Checkout') {
             steps {
                 git branch: 'project-1', url: 'https://github.com/ChibuzoNE/proj-mdp-152-155.git'
             }
         }
-        stage('Build & Run') {
+
+        stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build('calc-app:latest').run(
-                        '--name calc-app-container -p 8081:8080'
-                    )
+                    sh 'docker build -t calc-app:latest .'
                 }
             }
+        }
+
+        stage('Run Container') {
+            steps {
+                script {
+                    sh '''
+                        # Stop and remove existing container if it exists
+                        if [ $(docker ps -aq -f name=calc-app-container) ]; then
+                            docker stop calc-app-container || true
+                            docker rm calc-app-container || true
+                        fi
+
+                        # Run new container
+                        docker run -d --name calc-app-container -p 8081:8080 calc-app:latest
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        failure {
+            echo 'Pipeline failed - check logs for details'
         }
     }
 }
