@@ -15,7 +15,7 @@ pipeline {
             steps {
                 sh 'docker stop calc-app-container || true'
                 sh 'docker rm calc-app-container || true'
-                sh 'docker run -d --name calc-app-container -p 8080:8080 calc-app:latest'
+                sh 'docker run -d --name calc-app-container -p 8081:8080 calc-app:latest'
             }
         }
     }
