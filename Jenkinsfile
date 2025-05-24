@@ -13,7 +13,7 @@ pipeline {
             steps {
                 script {
                     docker.build('calc-app:latest').run(
-                        '--name calc-app-container -p 8080:8080'
+                        '--name calc-app-container -p 8081:8080'
                     )
                 }
             }
