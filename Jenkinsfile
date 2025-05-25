@@ -36,6 +36,24 @@ pipeline {
                 }
             }
         }
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                        sh '''
+                            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+        
+                            # Tag the image
+                            docker tag calc-app:latest chibuzone/calc-app:latest
+        
+                            # Push to Docker Hub
+                            docker push chibuzone/calc-app:latest
+                        '''
+                    }
+                }
+            }
+        }
+
     }
 
     post {
