@@ -158,7 +158,7 @@ cidr_blocks = ["0.0.0.0/0"]
 
 # EC2 Instances: Master & Worker Nodes
 resource "aws_instance" "k8s_master" {
-ami                    = "ami-0c55b159cbfafe1f0"
+ami                    = "ami-03a6eaae9938c858c"
 instance_type          = "t2.medium"
 key_name               = "first-instance"
 subnet_id              = aws_subnet.subnet_a.id
@@ -171,7 +171,7 @@ Name = "K8s-Master"
 }
 
 resource "aws_instance" "k8s_worker" {
-ami                    = "ami-0c55b159cbfafe1f0"
+ami                    = "ami-03a6eaae9938c858c"
 instance_type          = "t2.medium"
 key_name               = "first-instance"
 subnet_id              = aws_subnet.subnet_b.id
