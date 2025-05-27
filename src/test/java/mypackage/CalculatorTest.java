@@ -22,5 +22,4 @@ public class CalculatorTest {
         final long result = new Calculator().mulFucn(3, 3);
         assertThat(result, is(9L));
     }
-   
 }
