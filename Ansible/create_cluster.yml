@@ -1,0 +1,29 @@
+---
+- name: Create Kubernetes cluster with KOPS
+  hosts: localhost
+  vars_files:
+    - group_vars/all.yml
+  tasks:
+
+    - name: Export KOPS state store environment variable
+      set_fact:
+        kops_env: "export KOPS_STATE_STORE={{ state_store }}"
+
+    - name: Create Kubernetes cluster
+      shell: |
+        {{ kops_env }} && \
+        kops create cluster \
+        --name={{ cluster_name }} \
+        --zones={{ zones | join(',') }} \
+        --node-count={{ node_count }} \
+        --node-size={{ node_size }} \
+        --master-size={{ master_size }} \
+        --yes
+      environment:
+        KOPS_STATE_STORE: "{{ state_store }}"
+
+    - name: Validate the cluster
+      shell: |
+        {{ kops_env }} && kops validate cluster --name={{ cluster_name }} --wait 10m
+      environment:
+        KOPS_STATE_STORE: "{{ state_store }}"
