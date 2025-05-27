@@ -1,0 +1,113 @@
+---
+- hosts: jenkins_docker
+  become: yes
+  tasks:
+    - name: Install Docker
+      yum:
+        name: docker
+        state: present
+        update_cache: yes
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to Docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Install Amazon Corretto 17 (Java 17)
+      yum:
+        name: java-17-amazon-corretto
+        state: present
+
+    - name: Set Java 17 as default
+      alternatives:
+        name: java
+        path: /usr/lib/jvm/java-17-amazon-corretto.x86_64/bin/java
+
+    - name: Import Jenkins GPG key
+      rpm_key:
+        key: https://pkg.jenkins.io/redhat/jenkins.io-2023.key
+        state: present
+
+    - name: Add Jenkins repository
+      yum_repository:
+        name: jenkins
+        description: Jenkins Stable Repository
+        baseurl: https://pkg.jenkins.io/redhat-stable
+        gpgcheck: yes
+        enabled: yes
+
+    - name: Install Jenkins and git
+      yum:
+        name:
+          - jenkins
+          - git
+        state: present
+
+    - name: Create Jenkins home directory with correct permissions
+      file:
+        path: /var/lib/jenkins
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: '0755'
+
+    - name: Ensure Jenkins log directory exists
+      file:
+        path: /var/log/jenkins
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: '0755'
+
+    - name: Configure Jenkins Java options
+      lineinfile:
+        path: /etc/sysconfig/jenkins
+        regexp: '^JENKINS_JAVA_OPTIONS='
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Xmx2048m -XX:MaxPermSize=512m"'
+        create: yes
+
+    - name: Configure Jenkins port (if needed)
+      lineinfile:
+        path: /etc/sysconfig/jenkins
+        regexp: '^JENKINS_PORT='
+        line: 'JENKINS_PORT="8080"'
+        create: yes
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable Jenkins service
+      systemd:
+        name: jenkins
+        enabled: yes
+
+    - name: Start Jenkins service
+      systemd:
+        name: jenkins
+        state: started
+
+    - name: Wait for Jenkins to start up
+      wait_for:
+        port: 8080
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 30
+        timeout: 300
+
+    - name: Get Jenkins initial admin password
+      slurp:
+        src: /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_initial_password
+      ignore_errors: yes
+
+    - name: Display Jenkins initial admin password
+      debug:
+        msg: "Jenkins initial admin password: {{ jenkins_initial_password.content | b64decode }}"
+      when: jenkins_initial_password.content is defined
