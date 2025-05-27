@@ -19,6 +19,9 @@ Name = "KOPS State Store"
 resource "aws_vpc" "kops_vpc" {
 cidr_block = var.vpc_cidr
 
+enable_dns_support   = true
+enable_dns_hostnames = true
+
 tags = {
 Name = "kops-vpc"
 }
@@ -41,8 +44,8 @@ cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
 availability_zone = var.availability_zones[count.index]
 
 tags = {
-Name = "kops-public-subnet-${count.index}"
-"kubernetes.io/role/elb" = "1"
+Name                        = "kops-public-subnet-${count.index}"
+"kubernetes.io/role/elb"    = "1"
 }
 }
 
@@ -73,11 +76,9 @@ name = "MykubernetesRole"
 assume_role_policy = jsonencode({
 Version = "2012-10-17",
 Statement = [{
-    Effect = "Allow",
-    Principal = {
-    Service = "ec2.amazonaws.com"
-    },
-    Action = "sts:AssumeRole"
+    Effect    = "Allow",
+    Principal = { Service = "ec2.amazonaws.com" },
+    Action    = "sts:AssumeRole"
 }]
 })
 }
@@ -97,4 +98,86 @@ name = "chibuzo"
 role = aws_iam_role.kops_ec2_role.name
 }
 
+# Additional Subnets for EC2 Master & Worker
+resource "aws_subnet" "subnet_a" {
+vpc_id            = aws_vpc.kops_vpc.id
+cidr_block        = "10.0.20.0/24"
+availability_zone = "us-east-2a"
+
+tags = {
+Name = "ec2-subnet-a"
+}
+}
+
+resource "aws_subnet" "subnet_b" {
+vpc_id            = aws_vpc.kops_vpc.id
+cidr_block        = "10.0.30.0/24"
+availability_zone = "us-east-2b"
+
+tags = {
+Name = "ec2-subnet-b"
+}
+}
+
+# Security Group for EC2 Access
+resource "aws_security_group" "k8s_sg" {
+name        = "k8s-sg"
+description = "Allow Kubernetes and SSH"
+vpc_id      = aws_vpc.kops_vpc.id
+
+ingress {
+from_port   = 22
+to_port     = 22
+protocol    = "tcp"
+cidr_blocks = ["0.0.0.0/0"]
+}
+
+ingress {
+from_port   = 6443
+to_port     = 6443
+protocol    = "tcp"
+cidr_blocks = ["0.0.0.0/0"]
+}
+
+ingress {
+from_port   = 0
+to_port     = 0
+protocol    = "-1"
+cidr_blocks = ["10.0.0.0/16"]
+}
+
+egress {
+from_port   = 0
+to_port     = 0
+protocol    = "-1"
+cidr_blocks = ["0.0.0.0/0"]
+}
+}
+
+# EC2 Instances: Master & Worker Nodes
+resource "aws_instance" "k8s_master" {
+ami                         = "ami-0c55b159cbfafe1f0"
+instance_type               = "t2.medium"
+key_name                    = "first-instance"
+subnet_id                   = aws_subnet.subnet_a.id
+vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
+iam_instance_profile        = aws_iam_instance_profile.kops_instance_profile.name
+
+tags = {
+Name = "K8s-Master"
+}
+}
+
+resource "aws_instance" "k8s_worker" {
+ami                         = "ami-0c55b159cbfafe1f0"
+instance_type               = "t2.medium"
+key_name                    = "first-instance"
+subnet_id                   = aws_subnet.subnet_b.id
+vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
+iam_instance_profile        = aws_iam_instance_profile.kops_instance_profile.name
+
+tags = {
+Name = "K8s-Worker"
+}
+}
 
