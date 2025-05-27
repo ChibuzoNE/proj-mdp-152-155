@@ -7,7 +7,7 @@ default = "k8s-prod.chybuz.com"
 }
 
 variable "state_bucket" {
-default = "k8s-prod-state-store"
+default = "Chibuzo-k8s-bucket"
 }
 
 variable "availability_zones" {

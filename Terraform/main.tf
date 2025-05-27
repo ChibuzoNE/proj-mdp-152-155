@@ -68,7 +68,7 @@ route_table_id = aws_route_table.public_rt.id
 
 # IAM Role for EC2 Instances
 resource "aws_iam_role" "kops_ec2_role" {
-name = "kubernetes-role"
+name = "MykubernetesRole"
 
 assume_role_policy = jsonencode({
 Version = "2012-10-17",
