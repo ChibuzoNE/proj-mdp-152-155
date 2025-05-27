@@ -100,9 +100,10 @@ role = aws_iam_role.kops_ec2_role.name
 
 # Additional Subnets for EC2 Master & Worker
 resource "aws_subnet" "subnet_a" {
-vpc_id            = aws_vpc.kops_vpc.id
-cidr_block        = "10.0.20.0/24"
-availability_zone = "us-east-2a"
+vpc_id                  = aws_vpc.kops_vpc.id
+cidr_block              = "10.0.20.0/24"
+availability_zone       = "us-east-2a"
+map_public_ip_on_launch = true
 
 tags = {
 Name = "ec2-subnet-a"
@@ -110,9 +111,10 @@ Name = "ec2-subnet-a"
 }
 
 resource "aws_subnet" "subnet_b" {
-vpc_id            = aws_vpc.kops_vpc.id
-cidr_block        = "10.0.30.0/24"
-availability_zone = "us-east-2b"
+vpc_id                  = aws_vpc.kops_vpc.id
+cidr_block              = "10.0.30.0/24"
+availability_zone       = "us-east-2b"
+map_public_ip_on_launch = true
 
 tags = {
 Name = "ec2-subnet-b"
@@ -156,12 +158,12 @@ cidr_blocks = ["0.0.0.0/0"]
 
 # EC2 Instances: Master & Worker Nodes
 resource "aws_instance" "k8s_master" {
-ami                         = "ami-0c55b159cbfafe1f0"
-instance_type               = "t2.medium"
-key_name                    = "first-instance"
-subnet_id                   = aws_subnet.subnet_a.id
-vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
-iam_instance_profile        = aws_iam_instance_profile.kops_instance_profile.name
+ami                    = "ami-0c55b159cbfafe1f0"
+instance_type          = "t2.medium"
+key_name               = "first-instance"
+subnet_id              = aws_subnet.subnet_a.id
+vpc_security_group_ids = [aws_security_group.k8s_sg.id]
+iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
 
 tags = {
 Name = "K8s-Master"
@@ -169,15 +171,16 @@ Name = "K8s-Master"
 }
 
 resource "aws_instance" "k8s_worker" {
-ami                         = "ami-0c55b159cbfafe1f0"
-instance_type               = "t2.medium"
-key_name                    = "first-instance"
-subnet_id                   = aws_subnet.subnet_b.id
-vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
-iam_instance_profile        = aws_iam_instance_profile.kops_instance_profile.name
+ami                    = "ami-0c55b159cbfafe1f0"
+instance_type          = "t2.medium"
+key_name               = "first-instance"
+subnet_id              = aws_subnet.subnet_b.id
+vpc_security_group_ids = [aws_security_group.k8s_sg.id]
+iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
 
 tags = {
 Name = "K8s-Worker"
 }
 }
+
 
