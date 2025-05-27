@@ -158,12 +158,12 @@ cidr_blocks = ["0.0.0.0/0"]
 
 # EC2 Instances: Master & Worker Nodes
 resource "aws_instance" "k8s_master" {
-ami                    = "ami-03a6eaae9938c858c"
-instance_type          = "t2.medium"
-key_name               = "first-instance"
-subnet_id              = aws_subnet.subnet_a.id
-vpc_security_group_ids = [aws_security_group.k8s_sg.id]
-iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
+ami                         = data.aws_ssm_parameter.amazon_linux_2.value
+instance_type               = "t2.medium"
+key_name                    = "first-instance"
+subnet_id                   = aws_subnet.subnet_a.id
+vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
+iam_instance_profile        = aws_iam_instance_profile.kops_instance_profile.name
 
 tags = {
 Name = "K8s-Master"
@@ -171,16 +171,17 @@ Name = "K8s-Master"
 }
 
 resource "aws_instance" "k8s_worker" {
-ami                    = "ami-03a6eaae9938c858c"
-instance_type          = "t2.medium"
-key_name               = "first-instance"
-subnet_id              = aws_subnet.subnet_b.id
-vpc_security_group_ids = [aws_security_group.k8s_sg.id]
-iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
+ami                         = data.aws_ssm_parameter.amazon_linux_2.value
+instance_type               = "t2.medium"
+key_name                    = "first-instance"
+subnet_id                   = aws_subnet.subnet_b.id
+vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
+iam_instance_profile        = aws_iam_instance_profile.kops_instance_profile.name
 
 tags = {
 Name = "K8s-Worker"
 }
 }
+
 
 
