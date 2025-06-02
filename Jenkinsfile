@@ -38,7 +38,7 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f project-3/k8s-manifests/'
+                sh 'kubectl apply -f project-3/Ansible/K8s-deployment.yml'
             }
         }
     }
