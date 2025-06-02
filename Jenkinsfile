@@ -1,5 +1,12 @@
 pipeline {
     agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        IMAGE_NAME = 'calc-app'
+        DOCKERHUB_REPO = 'chibuzone/calc-app'
+    }
+
     options {
         timeout(time: 30, unit: 'MINUTES')
     }
@@ -13,51 +20,35 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t calc-app:latest .'
-                }
+                sh '''
+                    docker build -t $IMAGE_NAME:latest .
+                    docker tag $IMAGE_NAME:latest $DOCKERHUB_REPO:latest
+                '''
             }
         }
 
-        stage('Run Container') {
-            steps {
-                script {
-                    sh '''
-                        # Stop and remove existing container if it exists
-                        if [ $(docker ps -aq -f name=calc-app-container) ]; then
-                            docker stop calc-app-container || true
-                            docker rm calc-app-container || true
-                        fi
-
-                        # Run new container
-                        docker run -d --name calc-app-container -p 8081:8080 calc-app:latest
-                    '''
-                }
-            }
-        }
         stage('Push to Docker Hub') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
-                        sh '''
-                            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
-        
-                            # Tag the image
-                            docker tag calc-app:latest chibuzone/calc-app:latest
-        
-                            # Push to Docker Hub
-                            docker push chibuzone/calc-app:latest
-                        '''
-                    }
-                }
+                sh '''
+                    echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
+                    docker push $DOCKERHUB_REPO:latest
+                '''
             }
         }
 
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'kubectl apply -f project-3/k8s-manifests/'
+            }
+        }
     }
 
     post {
         failure {
-            echo 'Pipeline failed - check logs for details'
+            echo '❌ Pipeline failed - check logs for details.'
+        }
+        success {
+            echo '✅ Pipeline completed successfully.'
         }
     }
 }
