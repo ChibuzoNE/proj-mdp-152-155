@@ -189,3 +189,16 @@ Name = "K8s-Master"
 }
 }
 
+resource "aws_instance" "k8s_worker" {
+ami                    = data.aws_ssm_parameter.amazon_linux_2.value
+instance_type          = "t2.micro"
+key_name               = "first-instance"
+subnet_id              = aws_subnet.subnet_b.id
+vpc_security_group_ids = [aws_security_group.k8s_sg.id]
+iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
+
+tags = {
+Name = "K8s-Worker"
+}
+}
+
