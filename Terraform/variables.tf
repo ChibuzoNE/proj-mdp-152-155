@@ -1,5 +1,5 @@
 variable "region" {
-default = "us-east-2"
+default = "us-east-1"
 }
 
 variable "cluster_name" {
@@ -11,7 +11,7 @@ default = "Chibuzo-k8s-bucket"
 }
 
 variable "availability_zones" {
-default = ["us-east-2a", "us-east-2b"]
+default = ["us-east-1a", "us-east-1b"]
 }
 
 variable "vpc_cidr" {
