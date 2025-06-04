@@ -1,4 +1,4 @@
-region = "us-east-2"
+region = "us-east-1"
 cluster_name = "k8s-prod.chybuz.com"
 state_bucket = "chibuzo-k8s-bucket"
-availability_zones = ["us-east-2a", "us-east-2b"]
+availability_zones = ["us-east-1a", "us-east-1b"]
