@@ -117,7 +117,7 @@ role = aws_iam_role.kops_ec2_role.name
 resource "aws_subnet" "subnet_a" {
 vpc_id                  = aws_vpc.kops_vpc.id
 cidr_block              = "10.0.20.0/24"
-availability_zone       = "us-east-2a"
+availability_zone       = "us-east-1a"
 map_public_ip_on_launch = true
 
 tags = {
@@ -128,7 +128,7 @@ Name = "ec2-subnet-a"
 resource "aws_subnet" "subnet_b" {
 vpc_id                  = aws_vpc.kops_vpc.id
 cidr_block              = "10.0.30.0/24"
-availability_zone       = "us-east-2b"
+availability_zone       = "us-east-1b"
 map_public_ip_on_launch = true
 
 tags = {
