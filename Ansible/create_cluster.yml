@@ -6,57 +6,50 @@
   vars_files:
     - group_vars/all.yml
   vars:
-    local_ssh_key: "my-instance.pem"
-    local_ssh_pub: "id_rsa.pub"
+    pem_path: "/home/ec2-user/proj-mdp-152-155/Ansible/my-instance.pem"
+    private_key_path: "/tmp/id_rsa"
+    public_key_path: "/tmp/id_rsa.pub"
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
   tasks:
-    - name: Ensure proper SSH key pair exists and usable remotely
-      block:
-        - name: Convert PEM to private/public SSH keys on control node
-          delegate_to: localhost
-          run_once: true
-          shell: |
-            openssl rsa -in "{{ local_ssh_key }}" -out /tmp/id_rsa
-            chmod 600 /tmp/id_rsa
-            ssh-keygen -y -f /tmp/id_rsa > /tmp/id_rsa.pub
-            chmod 644 /tmp/id_rsa.pub
-          args:
-            executable: /bin/bash
 
-        - name: Copy SSH private key to remote nodes
-          copy:
-            src: /tmp/id_rsa
-            dest: /root/.ssh/id_rsa
-            owner: root
-            group: root
-            mode: '0600'
+    - name: Convert PEM to SSH private/public keys (localhost)
+      delegate_to: localhost
+      run_once: true
+      shell: |
+        openssl rsa -in "{{ pem_path }}" -out {{ private_key_path }}
+        chmod 600 {{ private_key_path }}
+        ssh-keygen -y -f {{ private_key_path }} > {{ public_key_path }}
+        chmod 644 {{ public_key_path }}
+      args:
+        executable: /bin/bash
 
-        - name: Copy SSH public key to remote nodes
-          copy:
-            src: /tmp/id_rsa.pub
-            dest: /root/.ssh/id_rsa.pub
-            owner: root
-            group: root
-            mode: '0644'
+    - name: Slurp private key from control node
+      delegate_to: localhost
+      run_once: true
+      slurp:
+        src: "{{ private_key_path }}"
+      register: slurped_private
 
-        - name: Verify public key format on remote nodes
-          command: ssh-keygen -l -f /root/.ssh/id_rsa.pub
-          register: key_verify
-          changed_when: false
+    - name: Slurp public key from control node
+      delegate_to: localhost
+      run_once: true
+      slurp:
+        src: "{{ public_key_path }}"
+      register: slurped_public
 
-      rescue:
-        - name: Clean up on failure
-          file:
-            path: /root/.ssh/id_rsa
-            state: absent
-          ignore_errors: yes
+    - name: Copy private key to remote nodes
+      copy:
+        content: "{{ slurped_private.content | b64decode }}"
+        dest: /root/.ssh/id_rsa
+        mode: '0600'
 
-        - name: Fail if key conversion unsuccessful
-          fail:
-            msg: "Failed to convert and validate SSH keys. Check your PEM file."
-          when: key_verify.rc != 0
+    - name: Copy public key to remote nodes
+      copy:
+        content: "{{ slurped_public.content | b64decode }}"
+        dest: /root/.ssh/id_rsa.pub
+        mode: '0644'
 
     - name: Install required packages
       package:
@@ -103,7 +96,7 @@
             state: absent
           ignore_errors: yes
 
-    - name: Configure cluster (run once)
+    - name: Configure Kubernetes cluster (run once)
       delegate_to: "{{ groups['k8s_workers'][0] }}"
       run_once: yes
       shell: |
@@ -111,7 +104,7 @@
         export KOPS_STATE_STORE={{ state_store }}
         {{ kops_download_path }} create cluster \
           --name={{ cluster_name }} \
-          --zones={{ zones|join(',') }} \
+          --zones={{ zones | join(',') }} \
           --node-count={{ node_count }} \
           --control-plane-size={{ master_size }} \
           --ssh-public-key=/root/.ssh/id_rsa.pub \
