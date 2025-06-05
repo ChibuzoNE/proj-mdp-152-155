@@ -6,31 +6,36 @@
   vars_files:
     - group_vars/all.yml
   vars:
-    ssh_key_path: "/home/ec2-user/.ssh/id_rsa.pub"  # Full explicit path
+    local_ssh_key: "my-instance.pem"  # Your PEM file in Ansible directory
+    local_ssh_pub: "{{ local_ssh_key }}.pub"  # Public key file
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
   tasks:
-    - name: Verify SSH key exists
-      stat:
-        path: "{{ ssh_key_path }}"
-      register: ssh_key_stat
-      ignore_errors: yes
+    - name: Ensure SSH key pair exists
+      block:
+        - name: Check if public key exists
+          stat:
+            path: "{{ local_ssh_pub }}"
+          register: pubkey_stat
+          ignore_errors: yes
 
-    - name: Fail if SSH key is missing
-      fail:
-        msg: "SSH public key not found at {{ ssh_key_path }}"
-      when: not ssh_key_stat.stat.exists
+        - name: Generate public key if missing
+          command: ssh-keygen -y -f "{{ local_ssh_key }}" > "{{ local_ssh_pub }}"
+          when: not pubkey_stat.stat.exists
 
-    - name: Copy SSH key to root's home
-      become: yes
+        - name: Verify public key
+          command: ssh-keygen -l -f "{{ local_ssh_pub }}"
+          register: key_verify
+          changed_when: false
+
+    - name: Copy SSH key to remote nodes
       copy:
-        src: "{{ ssh_key_path }}"
+        src: "{{ local_ssh_pub }}"
         dest: "/root/.ssh/id_rsa.pub"
         owner: root
         group: root
         mode: '0600'
-      when: ssh_key_stat.stat.exists
 
     - name: Install required packages
       package:
@@ -92,3 +97,13 @@
           --yes 2>&1 | tee /tmp/kops_create.log
       environment:
         AWS_DEFAULT_REGION: "{{ aws_region }}"
+
+    - name: Wait for cluster validation
+      delegate_to: "{{ groups['k8s_workers'][0] }}"
+      run_once: yes
+      command: "{{ kops_download_path }} validate cluster --wait 10m --name {{ cluster_name }}"
+      register: validation
+      until: validation.rc == 0
+      retries: 10
+      delay: 30
+      
