@@ -1,9 +1,9 @@
-aws_region: us-east-1
+aws_region: us-east-2
 cluster_name: k8s-prod.example.com
 state_store: s3://k8s-prod-state-store
 zones:
-  - us-east-1a
-  - us-east-1b
+  - us-east-2a
+  - us-east-2b
 node_count: 2
 node_size: t3.medium
 master_size: t3.medium
