@@ -102,6 +102,7 @@
       shell: |
         export KOPS_STATE_STORE={{ state_store }}
         {{ kops_download_path }} delete cluster --name={{ cluster_name }} --yes || true
+        aws s3 rm --recursive s3://{{ state_store | regex_replace('^s3://', '') }}/{{ cluster_name }} || true
       environment:
         AWS_DEFAULT_REGION: "{{ aws_region }}"
 
