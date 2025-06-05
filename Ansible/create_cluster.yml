@@ -11,39 +11,51 @@
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
-  tasks:
-    - name: Ensure proper SSH key pair exists
-      block:
-        - name: Convert PEM to standard SSH key pair
-          shell: |
-            # Convert PEM to RSA private key
-            openssl rsa -in "{{ local_ssh_key }}" -out /tmp/id_rsa
-            chmod 600 /tmp/id_rsa
-            # Generate public key
-            ssh-keygen -y -f /tmp/id_rsa > "{{ local_ssh_pub }}"
-            chmod 644 "{{ local_ssh_pub }}"
-          args:
-            executable: /bin/bash
-          register: key_conversion
-          changed_when: key_conversion.rc == 0
-          ignore_errors: yes
+  - name: Ensure proper SSH key pair exists and usable remotely
+  block:
+    - name: Convert PEM to private/public SSH keys on control node
+      delegate_to: localhost
+      run_once: true
+      shell: |
+        openssl rsa -in "{{ local_ssh_key }}" -out /tmp/id_rsa
+        chmod 600 /tmp/id_rsa
+        ssh-keygen -y -f /tmp/id_rsa > /tmp/id_rsa.pub
+        chmod 644 /tmp/id_rsa.pub
+      args:
+        executable: /bin/bash
 
-        - name: Verify public key format
-          command: ssh-keygen -l -f "{{ local_ssh_pub }}"
-          register: key_verify
-          changed_when: false
+    - name: Copy SSH private key to remote nodes
+      copy:
+        src: /tmp/id_rsa
+        dest: /root/.ssh/id_rsa
+        owner: root
+        group: root
+        mode: '0600'
 
-      rescue:
-        - name: Clean up failed key conversion
-          file:
-            path: "/tmp/id_rsa"
-            state: absent
-          ignore_errors: yes
+    - name: Copy SSH public key to remote nodes
+      copy:
+        src: /tmp/id_rsa.pub
+        dest: /root/.ssh/id_rsa.pub
+        owner: root
+        group: root
+        mode: '0644'
 
-        - name: Fail if key conversion unsuccessful
-          fail:
-            msg: "Failed to convert PEM key to SSH format. Ensure my-instance.pem is a valid PEM key."
-          when: key_verify.rc != 0
+    - name: Verify public key format on remote nodes
+      command: ssh-keygen -l -f /root/.ssh/id_rsa.pub
+      register: key_verify
+      changed_when: false
+
+  rescue:
+    - name: Clean up on failure
+      file:
+        path: /root/.ssh/id_rsa
+        state: absent
+      ignore_errors: yes
+
+    - name: Fail if key conversion unsuccessful
+      fail:
+        msg: "Failed to convert and validate SSH keys. Check your PEM file."
+      when: key_verify.rc != 0
 
     - name: Copy SSH public key to remote nodes
       copy:
