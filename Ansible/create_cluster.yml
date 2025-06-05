@@ -5,7 +5,7 @@
     - group_vars/all.yml
   vars:
     ssh_key_path: "~/.ssh/id_rsa.pub"
-    kops_version: "1.28.0"  # Pinned version for stability
+    kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
   tasks:
@@ -20,10 +20,32 @@
         msg: "AWS credentials not configured properly"
       when: aws_cred_check.rc != 0
 
-    - name: Install required system packages
+    - name: Check for existing curl installation
+      command: rpm -q curl curl-minimal
+      register: curl_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Resolve curl package conflicts
+      block:
+        - name: Remove conflicting curl-minimal package
+          become: yes
+          package:
+            name: curl-minimal
+            state: absent
+          when: "'curl-minimal' in curl_check.stdout"
+
+        - name: Install full curl package
+          become: yes
+          package:
+            name: curl
+            state: present
+      when: curl_check.rc != 0
+
+    - name: Install unzip if needed
       become: yes
       package:
-        name: ["curl", "unzip"]
+        name: unzip
         state: present
 
     - name: Download and install KOPS
