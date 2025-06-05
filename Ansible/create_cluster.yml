@@ -1,12 +1,14 @@
 ---
 - name: Create Kubernetes cluster with KOPS
-  hosts: localhost
+  hosts: k8s_workers  # Changed from localhost to your group
+  become: yes  # Enable privilege escalation
   vars_files:
     - group_vars/all.yml
   vars:
     ssh_key_path: "~/.ssh/id_rsa.pub"
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
+    temp_download_dir: "/tmp/kops-install"
 
   tasks:
     - name: Verify AWS credentials
@@ -20,58 +22,50 @@
         msg: "AWS credentials not configured properly"
       when: aws_cred_check.rc != 0
 
-    - name: Check for existing curl installation
-      command: rpm -q curl curl-minimal
-      register: curl_check
-      ignore_errors: yes
-      changed_when: false
-
-    - name: Resolve curl package conflicts
-      block:
-        - name: Remove conflicting curl-minimal package
-          become: yes
-          package:
-            name: curl-minimal
-            state: absent
-          when: "'curl-minimal' in curl_check.stdout"
-
-        - name: Install full curl package
-          become: yes
-          package:
-            name: curl
-            state: present
-      when: curl_check.rc != 0
-
-    - name: Install unzip if needed
-      become: yes
+    - name: Install required packages
       package:
-        name: unzip
+        name:
+          - curl
+          - unzip
+          - awscli
         state: present
+
+    - name: Create temporary download directory
+      file:
+        path: "{{ temp_download_dir }}"
+        state: directory
+        mode: '0755'
 
     - name: Download and install KOPS
       block:
         - name: Download KOPS
-          get_url:
+          uri:
             url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
-            dest: "/tmp/kops"
+            dest: "{{ temp_download_dir }}/kops"
             mode: '0755'
             timeout: 30
+            headers:
+              Accept: "application/octet-stream"
+          register: download_result
+          until: download_result.status == 200
+          retries: 3
+          delay: 10
 
         - name: Install KOPS
-          become: yes
           copy:
-            src: "/tmp/kops"
+            src: "{{ temp_download_dir }}/kops"
             dest: "{{ kops_download_path }}"
             remote_src: yes
             mode: '0755'
             owner: root
             group: root
 
-        - name: Verify KOPS installation
-          command: "{{ kops_download_path }} version"
-          register: kops_version_check
-          changed_when: false
       when: not lookup('file', kops_download_path, errors='ignore')
+
+    - name: Verify KOPS installation
+      command: "{{ kops_download_path }} version"
+      register: kops_version_check
+      changed_when: false
 
     - name: Create S3 bucket if it doesn't exist
       command: >
