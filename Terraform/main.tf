@@ -86,13 +86,25 @@ resource "aws_route_table_association" "rt_assoc" {
 resource "aws_iam_role" "kops_ec2_role" {
   name = "MykubernetesRole-v2"
 
-  # Optional: define any fields you want to match reality
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
 
   lifecycle {
     prevent_destroy = true
     ignore_changes  = all
   }
 }
+
 
 resource "aws_iam_role_policy_attachment" "attach_node_policy" {
   role       = aws_iam_role.kops_ec2_role.name
