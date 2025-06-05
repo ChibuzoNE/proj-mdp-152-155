@@ -7,33 +7,45 @@
     - group_vars/all.yml
   vars:
     local_ssh_key: "my-instance.pem"
-    local_ssh_pub: "{{ local_ssh_key }}.pub"
+    local_ssh_pub: "id_rsa.pub"  # New standard public key name
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
   tasks:
-    - name: Ensure SSH key pair exists
+    - name: Ensure proper SSH key pair exists
       block:
-        - name: Check if public key exists
-          stat:
-            path: "{{ local_ssh_pub }}"
-          register: pubkey_stat
-          ignore_errors: yes
-
-        - name: Generate public key if missing
+        - name: Convert PEM to standard SSH key pair
           shell: |
-            ssh-keygen -y -f "{{ local_ssh_key }}" > "{{ local_ssh_pub }}"
+            # Convert PEM to RSA private key
+            openssl rsa -in "{{ local_ssh_key }}" -out /tmp/id_rsa
+            chmod 600 /tmp/id_rsa
+            # Generate public key
+            ssh-keygen -y -f /tmp/id_rsa > "{{ local_ssh_pub }}"
             chmod 644 "{{ local_ssh_pub }}"
           args:
             executable: /bin/bash
-          when: not pubkey_stat.stat.exists
+          register: key_conversion
+          changed_when: key_conversion.rc == 0
+          ignore_errors: yes
 
-        - name: Verify public key
+        - name: Verify public key format
           command: ssh-keygen -l -f "{{ local_ssh_pub }}"
           register: key_verify
           changed_when: false
 
-    - name: Copy SSH key to remote nodes
+      rescue:
+        - name: Clean up failed key conversion
+          file:
+            path: "/tmp/id_rsa"
+            state: absent
+          ignore_errors: yes
+
+        - name: Fail if key conversion unsuccessful
+          fail:
+            msg: "Failed to convert PEM key to SSH format. Ensure my-instance.pem is a valid PEM key."
+          when: key_verify.rc != 0
+
+    - name: Copy SSH public key to remote nodes
       copy:
         src: "{{ local_ssh_pub }}"
         dest: "/root/.ssh/id_rsa.pub"
