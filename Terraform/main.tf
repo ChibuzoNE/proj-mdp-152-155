@@ -84,7 +84,7 @@ resource "aws_route_table_association" "rt_assoc" {
 # IAM Role for EC2
 # -----------------------
 resource "aws_iam_role" "kops_ec2_role" {
-  name = "MykubernetesRole"
+  name = "MykubernetesRole-v2"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
