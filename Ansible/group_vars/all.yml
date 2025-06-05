@@ -5,5 +5,5 @@ zones:
   - us-east-2a
   - us-east-2b
 node_count: 2
-node_size: t3.medium
-master_size: t3.medium
+node_size: t3.micro
+master_size: t3.micro
