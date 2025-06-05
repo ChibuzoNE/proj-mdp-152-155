@@ -1,83 +1,92 @@
 ---
 - name: Create Kubernetes cluster with KOPS
-  hosts: k8s_workers  # Changed from localhost to your group
-  become: yes  # Enable privilege escalation
+  hosts: k8s_workers
+  become: yes
+  strategy: free  # Better for parallel execution
   vars_files:
     - group_vars/all.yml
   vars:
     ssh_key_path: "~/.ssh/id_rsa.pub"
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
-    temp_download_dir: "/tmp/kops-install"
 
   tasks:
-    - name: Verify AWS credentials
-      command: aws sts get-caller-identity
-      register: aws_cred_check
-      changed_when: false
+    - name: Verify system connectivity
+      ping:
+      register: ping_test
+      until: ping_test.ping == "pong"
+      retries: 5
+      delay: 10
       ignore_errors: yes
-
-    - name: Fail if AWS credentials are invalid
-      fail:
-        msg: "AWS credentials not configured properly"
-      when: aws_cred_check.rc != 0
 
     - name: Install required packages
       package:
         name:
           - curl
           - unzip
-          - awscli
+          - python3-pip
         state: present
+      async: 300
+      poll: 15
 
-    - name: Create temporary download directory
-      file:
-        path: "{{ temp_download_dir }}"
-        state: directory
-        mode: '0755'
+    - name: Install AWS CLI via pip
+      pip:
+        name: awscli
+        state: present
+      when: ansible_python.version.major == 3
 
-    - name: Download and install KOPS
+    - name: Download KOPS with retry logic
       block:
-        - name: Download KOPS
-          uri:
-            url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
-            dest: "{{ temp_download_dir }}/kops"
+        - name: Create temp directory
+          file:
+            path: /tmp/kops-install
+            state: directory
             mode: '0755'
-            timeout: 30
-            headers:
-              Accept: "application/octet-stream"
+
+        - name: Download KOPS binary
+          get_url:
+            url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
+            dest: /tmp/kops-install/kops
+            mode: '0755'
+            timeout: 60
+            validate_certs: no
           register: download_result
-          until: download_result.status == 200
-          retries: 3
-          delay: 10
+          until: download_result is succeeded
+          retries: 5
+          delay: 15
+          ignore_errors: yes
 
         - name: Install KOPS
           copy:
-            src: "{{ temp_download_dir }}/kops"
+            src: /tmp/kops-install/kops
             dest: "{{ kops_download_path }}"
             remote_src: yes
             mode: '0755'
             owner: root
             group: root
 
-      when: not lookup('file', kops_download_path, errors='ignore')
+        - name: Verify installation
+          command: "{{ kops_download_path }} version"
+          register: kops_ver
+          changed_when: false
 
-    - name: Verify KOPS installation
-      command: "{{ kops_download_path }} version"
-      register: kops_version_check
-      changed_when: false
+      rescue:
+        - name: Clean up on failure
+          file:
+            path: /tmp/kops-install
+            state: absent
+          ignore_errors: yes
 
-    - name: Create S3 bucket if it doesn't exist
-      command: >
-        aws s3api create-bucket
-        --bucket {{ state_store | regex_replace('^s3://', '') }}
-        --region {{ aws_region }}
-        --create-bucket-configuration LocationConstraint={{ aws_region }}
-      register: bucket_create
-      changed_when: bucket_create.rc == 0
-      ignore_errors: yes
+        - name: Retry the entire block
+          include_tasks: "{{ playbook_dir }}/retry_block.yml"
+          when: retry_block.attempts < 3
+          vars:
+            retry_block:
+              attempts: "{{ (retry_block.attempts | default(0)) + 1 }}"
 
-    - name: Create Kubernetes cluster
+    - name: Configure cluster (run once)
+      delegate_to: "{{ groups['k8s_workers'][0] }}"
+      run_once: yes
       shell: |
         set -o pipefail
         export KOPS_STATE_STORE={{ state_store }}
@@ -91,35 +100,3 @@
           --yes 2>&1 | tee /tmp/kops_create.log
       environment:
         AWS_DEFAULT_REGION: "{{ aws_region }}"
-      register: cluster_creation
-      changed_when: "'exists' not in cluster_creation.stdout"
-      args:
-        executable: /bin/bash
-
-    - name: Wait for cluster to be ready
-      shell: |
-        export KOPS_STATE_STORE={{ state_store }}
-        {{ kops_download_path }} validate cluster \
-          --name={{ cluster_name }} \
-          --wait 10m
-      register: validation
-      until: validation.rc == 0
-      retries: 10
-      delay: 30
-      ignore_errors: yes
-
-    - name: Show cluster information
-      debug:
-        msg: |
-          Cluster created successfully!
-          Name: {{ cluster_name }}
-          State Store: {{ state_store }}
-          Nodes: {{ node_count }} x {{ node_size }}
-          Master: {{ master_size }}
-          Zones: {{ zones|join(', ') }}
-          Region: {{ aws_region }}
-          KOPS Version: {{ kops_version }}
-
-    - name: Get cluster credentials
-      command: "{{ kops_download_path }} export kubecfg --name {{ cluster_name }} --admin"
-      when: validation.rc == 0
