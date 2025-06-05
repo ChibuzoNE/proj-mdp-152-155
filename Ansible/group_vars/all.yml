@@ -1,6 +1,6 @@
 aws_region: us-east-2
 cluster_name: k8s-prod.example.com
-state_store: s3://k8s-prod-state-store
+state_store: s3://chybuz1-k8s-bucket
 zones:
   - us-east-2a
   - us-east-2b
