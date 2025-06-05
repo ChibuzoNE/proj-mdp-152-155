@@ -7,63 +7,56 @@
     - group_vars/all.yml
   vars:
     local_ssh_key: "my-instance.pem"
-    local_ssh_pub: "id_rsa.pub"  # New standard public key name
+    local_ssh_pub: "id_rsa.pub"
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
-  - name: Ensure proper SSH key pair exists and usable remotely
-  block:
-    - name: Convert PEM to private/public SSH keys on control node
-      delegate_to: localhost
-      run_once: true
-      shell: |
-        openssl rsa -in "{{ local_ssh_key }}" -out /tmp/id_rsa
-        chmod 600 /tmp/id_rsa
-        ssh-keygen -y -f /tmp/id_rsa > /tmp/id_rsa.pub
-        chmod 644 /tmp/id_rsa.pub
-      args:
-        executable: /bin/bash
+  tasks:
+    - name: Ensure proper SSH key pair exists and usable remotely
+      block:
+        - name: Convert PEM to private/public SSH keys on control node
+          delegate_to: localhost
+          run_once: true
+          shell: |
+            openssl rsa -in "{{ local_ssh_key }}" -out /tmp/id_rsa
+            chmod 600 /tmp/id_rsa
+            ssh-keygen -y -f /tmp/id_rsa > /tmp/id_rsa.pub
+            chmod 644 /tmp/id_rsa.pub
+          args:
+            executable: /bin/bash
 
-    - name: Copy SSH private key to remote nodes
-      copy:
-        src: /tmp/id_rsa
-        dest: /root/.ssh/id_rsa
-        owner: root
-        group: root
-        mode: '0600'
+        - name: Copy SSH private key to remote nodes
+          copy:
+            src: /tmp/id_rsa
+            dest: /root/.ssh/id_rsa
+            owner: root
+            group: root
+            mode: '0600'
 
-    - name: Copy SSH public key to remote nodes
-      copy:
-        src: /tmp/id_rsa.pub
-        dest: /root/.ssh/id_rsa.pub
-        owner: root
-        group: root
-        mode: '0644'
+        - name: Copy SSH public key to remote nodes
+          copy:
+            src: /tmp/id_rsa.pub
+            dest: /root/.ssh/id_rsa.pub
+            owner: root
+            group: root
+            mode: '0644'
 
-    - name: Verify public key format on remote nodes
-      command: ssh-keygen -l -f /root/.ssh/id_rsa.pub
-      register: key_verify
-      changed_when: false
+        - name: Verify public key format on remote nodes
+          command: ssh-keygen -l -f /root/.ssh/id_rsa.pub
+          register: key_verify
+          changed_when: false
 
-  rescue:
-    - name: Clean up on failure
-      file:
-        path: /root/.ssh/id_rsa
-        state: absent
-      ignore_errors: yes
+      rescue:
+        - name: Clean up on failure
+          file:
+            path: /root/.ssh/id_rsa
+            state: absent
+          ignore_errors: yes
 
-    - name: Fail if key conversion unsuccessful
-      fail:
-        msg: "Failed to convert and validate SSH keys. Check your PEM file."
-      when: key_verify.rc != 0
-
-    - name: Copy SSH public key to remote nodes
-      copy:
-        src: "{{ local_ssh_pub }}"
-        dest: "/root/.ssh/id_rsa.pub"
-        owner: root
-        group: root
-        mode: '0600'
+        - name: Fail if key conversion unsuccessful
+          fail:
+            msg: "Failed to convert and validate SSH keys. Check your PEM file."
+          when: key_verify.rc != 0
 
     - name: Install required packages
       package:
