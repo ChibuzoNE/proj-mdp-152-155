@@ -2,22 +2,35 @@
 - name: Create Kubernetes cluster with KOPS
   hosts: k8s_workers
   become: yes
-  strategy: free  # Better for parallel execution
+  strategy: free
   vars_files:
     - group_vars/all.yml
   vars:
-    ssh_key_path: "~/.ssh/id_rsa.pub"
+    ssh_key_path: "/home/ec2-user/.ssh/id_rsa.pub"  # Full explicit path
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
   tasks:
-    - name: Verify system connectivity
-      ping:
-      register: ping_test
-      until: ping_test.ping == "pong"
-      retries: 5
-      delay: 10
+    - name: Verify SSH key exists
+      stat:
+        path: "{{ ssh_key_path }}"
+      register: ssh_key_stat
       ignore_errors: yes
+
+    - name: Fail if SSH key is missing
+      fail:
+        msg: "SSH public key not found at {{ ssh_key_path }}"
+      when: not ssh_key_stat.stat.exists
+
+    - name: Copy SSH key to root's home
+      become: yes
+      copy:
+        src: "{{ ssh_key_path }}"
+        dest: "/root/.ssh/id_rsa.pub"
+        owner: root
+        group: root
+        mode: '0600'
+      when: ssh_key_stat.stat.exists
 
     - name: Install required packages
       package:
@@ -35,54 +48,34 @@
         state: present
       when: ansible_python.version.major == 3
 
-    - name: Download KOPS with retry logic
+    - name: Download and install KOPS
       block:
-        - name: Create temp directory
-          file:
-            path: /tmp/kops-install
-            state: directory
-            mode: '0755'
-
         - name: Download KOPS binary
           get_url:
             url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
-            dest: /tmp/kops-install/kops
+            dest: /tmp/kops
             mode: '0755'
             timeout: 60
-            validate_certs: no
           register: download_result
           until: download_result is succeeded
-          retries: 5
-          delay: 15
-          ignore_errors: yes
+          retries: 3
+          delay: 10
 
         - name: Install KOPS
           copy:
-            src: /tmp/kops-install/kops
+            src: /tmp/kops
             dest: "{{ kops_download_path }}"
             remote_src: yes
             mode: '0755'
             owner: root
             group: root
 
-        - name: Verify installation
-          command: "{{ kops_download_path }} version"
-          register: kops_ver
-          changed_when: false
-
       rescue:
         - name: Clean up on failure
           file:
-            path: /tmp/kops-install
+            path: /tmp/kops
             state: absent
           ignore_errors: yes
-
-        - name: Retry the entire block
-          include_tasks: "{{ playbook_dir }}/retry_block.yml"
-          when: retry_block.attempts < 3
-          vars:
-            retry_block:
-              attempts: "{{ (retry_block.attempts | default(0)) + 1 }}"
 
     - name: Configure cluster (run once)
       delegate_to: "{{ groups['k8s_workers'][0] }}"
@@ -94,9 +87,8 @@
           --name={{ cluster_name }} \
           --zones={{ zones|join(',') }} \
           --node-count={{ node_count }} \
-          --node-size={{ node_size }} \
-          --master-size={{ master_size }} \
-          --ssh-public-key={{ ssh_key_path }} \
+          --control-plane-size={{ master_size }} \
+          --ssh-public-key=/root/.ssh/id_rsa.pub \
           --yes 2>&1 | tee /tmp/kops_create.log
       environment:
         AWS_DEFAULT_REGION: "{{ aws_region }}"
