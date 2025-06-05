@@ -96,7 +96,16 @@
             state: absent
           ignore_errors: yes
 
-    - name: Configure Kubernetes cluster (run once)
+    - name: Delete existing kops cluster if any (run once)
+      delegate_to: "{{ groups['k8s_workers'][0] }}"
+      run_once: yes
+      shell: |
+        export KOPS_STATE_STORE={{ state_store }}
+        {{ kops_download_path }} delete cluster --name={{ cluster_name }} --yes || true
+      environment:
+        AWS_DEFAULT_REGION: "{{ aws_region }}"
+
+    - name: Create Kubernetes cluster (run once)
       delegate_to: "{{ groups['k8s_workers'][0] }}"
       run_once: yes
       shell: |
@@ -112,7 +121,16 @@
       environment:
         AWS_DEFAULT_REGION: "{{ aws_region }}"
 
-    - name: Wait for cluster validation
+    - name: Update and apply the cluster config (run once)
+      delegate_to: "{{ groups['k8s_workers'][0] }}"
+      run_once: yes
+      shell: |
+        export KOPS_STATE_STORE={{ state_store }}
+        {{ kops_download_path }} update cluster --name={{ cluster_name }} --yes
+      environment:
+        AWS_DEFAULT_REGION: "{{ aws_region }}"
+
+    - name: Wait for cluster validation (run once)
       delegate_to: "{{ groups['k8s_workers'][0] }}"
       run_once: yes
       command: "{{ kops_download_path }} validate cluster --wait 10m --name {{ cluster_name }}"
@@ -120,3 +138,5 @@
       until: validation.rc == 0
       retries: 10
       delay: 30
+      environment:
+        AWS_DEFAULT_REGION: "{{ aws_region }}"
