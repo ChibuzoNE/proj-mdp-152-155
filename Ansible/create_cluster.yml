@@ -4,11 +4,10 @@
   vars_files:
     - group_vars/all.yml
   vars:
-    # Default variables that can be overridden
-    kops_bucket: "{{ lookup('env', 'KOPS_BUCKET') | default('k8s-prod-state-store') }}"
     ssh_key_path: "~/.ssh/id_rsa.pub"
-    kops_version: "latest"
-  
+    kops_version: "1.28.0"  # Pinned version for stability
+    kops_download_path: "/usr/local/bin/kops"
+
   tasks:
     - name: Verify AWS credentials
       command: aws sts get-caller-identity
@@ -21,49 +20,41 @@
         msg: "AWS credentials not configured properly"
       when: aws_cred_check.rc != 0
 
-    - name: Check if KOPS is installed
-      command: which kops
-      register: kops_installed
-      changed_when: false
-      ignore_errors: yes
+    - name: Install required system packages
+      become: yes
+      package:
+        name: ["curl", "unzip"]
+        state: present
 
-    - name: Install KOPS if missing
+    - name: Download and install KOPS
       block:
-        - name: Get latest KOPS version
-          uri:
-            url: "https://api.github.com/repos/kubernetes/kops/releases/latest"
-            return_content: yes
-          register: kops_release
-          when: kops_version == "latest"
-
-        - name: Set KOPS download URL
-          set_fact:
-            kops_download_url: "https://github.com/kubernetes/kops/releases/download/{{ kops_version if kops_version != 'latest' else kops_release.json.tag_name }}/kops-linux-amd64"
-        
         - name: Download KOPS
           get_url:
-            url: "{{ kops_download_url }}"
-            dest: /tmp/kops
+            url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
+            dest: "/tmp/kops"
             mode: '0755'
-        
+            timeout: 30
+
         - name: Install KOPS
           become: yes
           copy:
-            src: /tmp/kops
-            dest: /usr/local/bin/kops
+            src: "/tmp/kops"
+            dest: "{{ kops_download_path }}"
             remote_src: yes
             mode: '0755'
-        
+            owner: root
+            group: root
+
         - name: Verify KOPS installation
-          command: kops version
+          command: "{{ kops_download_path }} version"
           register: kops_version_check
           changed_when: false
-      when: kops_installed.rc != 0
+      when: not lookup('file', kops_download_path, errors='ignore')
 
     - name: Create S3 bucket if it doesn't exist
       command: >
         aws s3api create-bucket
-        --bucket {{ kops_bucket }}
+        --bucket {{ state_store | regex_replace('^s3://', '') }}
         --region {{ aws_region }}
         --create-bucket-configuration LocationConstraint={{ aws_region }}
       register: bucket_create
@@ -74,7 +65,7 @@
       shell: |
         set -o pipefail
         export KOPS_STATE_STORE={{ state_store }}
-        kops create cluster \
+        {{ kops_download_path }} create cluster \
           --name={{ cluster_name }} \
           --zones={{ zones|join(',') }} \
           --node-count={{ node_count }} \
@@ -92,7 +83,7 @@
     - name: Wait for cluster to be ready
       shell: |
         export KOPS_STATE_STORE={{ state_store }}
-        kops validate cluster \
+        {{ kops_download_path }} validate cluster \
           --name={{ cluster_name }} \
           --wait 10m
       register: validation
@@ -111,7 +102,8 @@
           Master: {{ master_size }}
           Zones: {{ zones|join(', ') }}
           Region: {{ aws_region }}
+          KOPS Version: {{ kops_version }}
 
     - name: Get cluster credentials
-      command: kops export kubecfg --name {{ cluster_name }} --admin
+      command: "{{ kops_download_path }} export kubecfg --name {{ cluster_name }} --admin"
       when: validation.rc == 0
