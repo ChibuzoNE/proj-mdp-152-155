@@ -11,16 +11,17 @@
 
     - name: Create Kubernetes cluster
       shell: |
-        {{ kops_env }} && \
-        kops create cluster \
-        --name={{ cluster_name }} \
-        --zones={{ zones | join(',') }} \
-        --node-count={{ node_count }} \
-        --node-size={{ node_size }} \
-        --master-size={{ master_size }} \
-        --yes
+        export KOPS_STATE_STORE=s3://{{ lookup('env', 'KOPS_BUCKET') | default('chibuzo-kops-state') }}
+        /usr/local/bin/kops create cluster \
+          --name=k8s-prod.k8s.local \
+          --zones=us-east-2a,us-east-2b \
+          --node-count=2 \
+          --node-size=t3.medium \
+          --master-size=t3.medium \
+          --yes
       environment:
-        KOPS_STATE_STORE: "{{ state_store }}"
+        AWS_DEFAULT_REGION: us-east-2
+
 
     - name: Validate the cluster
       shell: |
