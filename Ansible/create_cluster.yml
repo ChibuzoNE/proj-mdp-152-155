@@ -6,8 +6,8 @@
   vars_files:
     - group_vars/all.yml
   vars:
-    local_ssh_key: "my-instance.pem"  # Your PEM file in Ansible directory
-    local_ssh_pub: "{{ local_ssh_key }}.pub"  # Public key file
+    local_ssh_key: "my-instance.pem"
+    local_ssh_pub: "{{ local_ssh_key }}.pub"
     kops_version: "1.28.0"
     kops_download_path: "/usr/local/bin/kops"
 
@@ -21,7 +21,11 @@
           ignore_errors: yes
 
         - name: Generate public key if missing
-          command: ssh-keygen -y -f "{{ local_ssh_key }}" > "{{ local_ssh_pub }}"
+          shell: |
+            ssh-keygen -y -f "{{ local_ssh_key }}" > "{{ local_ssh_pub }}"
+            chmod 644 "{{ local_ssh_pub }}"
+          args:
+            executable: /bin/bash
           when: not pubkey_stat.stat.exists
 
         - name: Verify public key
@@ -106,4 +110,3 @@
       until: validation.rc == 0
       retries: 10
       delay: 30
-      
