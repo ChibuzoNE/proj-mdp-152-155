@@ -3,28 +3,115 @@
   hosts: localhost
   vars_files:
     - group_vars/all.yml
+  vars:
+    # Default variables that can be overridden
+    kops_bucket: "{{ lookup('env', 'KOPS_BUCKET') | default('k8s-prod-state-store') }}"
+    ssh_key_path: "~/.ssh/id_rsa.pub"
+    kops_version: "latest"
+  
   tasks:
+    - name: Verify AWS credentials
+      command: aws sts get-caller-identity
+      register: aws_cred_check
+      changed_when: false
+      ignore_errors: yes
 
-    - name: Export KOPS state store environment variable
-      set_fact:
-        kops_env: "export KOPS_STATE_STORE={{ state_store }}"
+    - name: Fail if AWS credentials are invalid
+      fail:
+        msg: "AWS credentials not configured properly"
+      when: aws_cred_check.rc != 0
+
+    - name: Check if KOPS is installed
+      command: which kops
+      register: kops_installed
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Install KOPS if missing
+      block:
+        - name: Get latest KOPS version
+          uri:
+            url: "https://api.github.com/repos/kubernetes/kops/releases/latest"
+            return_content: yes
+          register: kops_release
+          when: kops_version == "latest"
+
+        - name: Set KOPS download URL
+          set_fact:
+            kops_download_url: "https://github.com/kubernetes/kops/releases/download/{{ kops_version if kops_version != 'latest' else kops_release.json.tag_name }}/kops-linux-amd64"
+        
+        - name: Download KOPS
+          get_url:
+            url: "{{ kops_download_url }}"
+            dest: /tmp/kops
+            mode: '0755'
+        
+        - name: Install KOPS
+          become: yes
+          copy:
+            src: /tmp/kops
+            dest: /usr/local/bin/kops
+            remote_src: yes
+            mode: '0755'
+        
+        - name: Verify KOPS installation
+          command: kops version
+          register: kops_version_check
+          changed_when: false
+      when: kops_installed.rc != 0
+
+    - name: Create S3 bucket if it doesn't exist
+      command: >
+        aws s3api create-bucket
+        --bucket {{ kops_bucket }}
+        --region {{ aws_region }}
+        --create-bucket-configuration LocationConstraint={{ aws_region }}
+      register: bucket_create
+      changed_when: bucket_create.rc == 0
+      ignore_errors: yes
 
     - name: Create Kubernetes cluster
       shell: |
-        export KOPS_STATE_STORE=s3://{{ lookup('env', 'KOPS_BUCKET') | default('chibuzo-kops-state') }}
-        /usr/local/bin/kops create cluster \
-          --name=k8s-prod.k8s.local \
-          --zones=us-east-2a,us-east-2b \
-          --node-count=2 \
-          --node-size=t3.medium \
-          --master-size=t3.medium \
-          --yes
+        set -o pipefail
+        export KOPS_STATE_STORE={{ state_store }}
+        kops create cluster \
+          --name={{ cluster_name }} \
+          --zones={{ zones|join(',') }} \
+          --node-count={{ node_count }} \
+          --node-size={{ node_size }} \
+          --master-size={{ master_size }} \
+          --ssh-public-key={{ ssh_key_path }} \
+          --yes 2>&1 | tee /tmp/kops_create.log
       environment:
-        AWS_DEFAULT_REGION: us-east-2
+        AWS_DEFAULT_REGION: "{{ aws_region }}"
+      register: cluster_creation
+      changed_when: "'exists' not in cluster_creation.stdout"
+      args:
+        executable: /bin/bash
 
-
-    - name: Validate the cluster
+    - name: Wait for cluster to be ready
       shell: |
-        {{ kops_env }} && kops validate cluster --name={{ cluster_name }} --wait 10m
-      environment:
-        KOPS_STATE_STORE: "{{ state_store }}"
+        export KOPS_STATE_STORE={{ state_store }}
+        kops validate cluster \
+          --name={{ cluster_name }} \
+          --wait 10m
+      register: validation
+      until: validation.rc == 0
+      retries: 10
+      delay: 30
+      ignore_errors: yes
+
+    - name: Show cluster information
+      debug:
+        msg: |
+          Cluster created successfully!
+          Name: {{ cluster_name }}
+          State Store: {{ state_store }}
+          Nodes: {{ node_count }} x {{ node_size }}
+          Master: {{ master_size }}
+          Zones: {{ zones|join(', ') }}
+          Region: {{ aws_region }}
+
+    - name: Get cluster credentials
+      command: kops export kubecfg --name {{ cluster_name }} --admin
+      when: validation.rc == 0
