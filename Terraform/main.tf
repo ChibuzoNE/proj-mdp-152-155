@@ -84,7 +84,7 @@ resource "aws_route_table_association" "rt_assoc" {
 # IAM Role for EC2
 # -----------------------
 resource "aws_iam_role" "kops_ec2_role" {
-  name = "MykubernetesRole-v2"
+  name = "MykubernetesRole"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -98,11 +98,6 @@ resource "aws_iam_role" "kops_ec2_role" {
       }
     ]
   })
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = all
-  }
 }
 
 
@@ -127,7 +122,7 @@ resource "aws_iam_instance_profile" "kops_instance_profile" {
 resource "aws_subnet" "subnet_a" {
   vpc_id                  = aws_vpc.kops_vpc.id
   cidr_block              = "10.0.20.0/24"
-  availability_zone       = "us-east-1a"
+  availability_zone       = "us-east-2a"
   map_public_ip_on_launch = true
 
   tags = {
@@ -138,7 +133,7 @@ resource "aws_subnet" "subnet_a" {
 resource "aws_subnet" "subnet_b" {
   vpc_id                  = aws_vpc.kops_vpc.id
   cidr_block              = "10.0.30.0/24"
-  availability_zone       = "us-east-1b"
+  availability_zone       = "us-east-2b"
   map_public_ip_on_launch = true
 
   tags = {
@@ -189,7 +184,7 @@ resource "aws_security_group" "k8s_sg" {
 resource "aws_instance" "k8s_master" {
   ami                    = data.aws_ssm_parameter.amazon_linux_2.value
   instance_type          = "t2.micro"
-  key_name               = "first-instance"
+  key_name               = "my-instance"
   subnet_id              = aws_subnet.subnet_a.id
   vpc_security_group_ids = [aws_security_group.k8s_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
@@ -202,7 +197,7 @@ resource "aws_instance" "k8s_master" {
 resource "aws_instance" "k8s_worker" {
   ami                    = data.aws_ssm_parameter.amazon_linux_2.value
   instance_type          = "t2.micro"
-  key_name               = "first-instance"
+  key_name               = "my-instance"
   subnet_id              = aws_subnet.subnet_b.id
   vpc_security_group_ids = [aws_security_group.k8s_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.kops_instance_profile.name
