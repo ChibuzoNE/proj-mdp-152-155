@@ -22,17 +22,24 @@
       debug:
         msg: "kops binary found at /usr/local/bin/kops"
 
-    - name: "Delete cluster"
-      shell: "/usr/local/bin/kops delete cluster --name {{ kops_cluster_name }} --yes --state {{ kops_state_store }}"
+    - name: "Delete Kubernetes cluster using kops"
+      shell: >
+        /usr/local/bin/kops delete cluster
+        --name {{ kops_cluster_name }}
+        --yes
+        --state {{ kops_state_store }}
       register: delete_output
       ignore_errors: yes
 
-    - name: "Show output of delete command"
+    - name: "Display stdout from deletion"
       debug:
         var: delete_output.stdout_lines
+
+    - name: "Display stderr from deletion"
+      debug:
+        var: delete_output.stderr_lines
 
     - name: "Fail if deletion failed"
       fail:
         msg: "Cluster deletion failed: {{ delete_output.stderr }}"
       when: delete_output.rc != 0
-
