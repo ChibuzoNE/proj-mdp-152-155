@@ -1,17 +1,14 @@
 ---
-- name: Delete Kubernetes cluster
-  hosts: localhost
+- name: Delete Kubernetes Cluster
+  hosts: k8s
+  become: yes
   vars_files:
     - group_vars/all.yml
+  environment:
+    KOPS_STATE_STORE: "{{ kops_state_store }}"
   tasks:
-
-    - name: Export KOPS state store environment variable
-      set_fact:
-        kops_env: "export KOPS_STATE_STORE={{ state_store }}"
-
     - name: Delete cluster
-      shell: |
-        {{ kops_env }} && \
-        kops delete cluster --name {{ cluster_name }} --yes
-      environment:
-        KOPS_STATE_STORE: "{{ state_store }}"
+      shell: kops delete cluster --name {{ kops_cluster_name }} --yes
+
+
+
