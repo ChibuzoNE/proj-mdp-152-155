@@ -14,7 +14,7 @@ data "aws_ssm_parameter" "amazon_linux_2" {
 # -----------------------
 resource "aws_s3_bucket" "kops_state_store" {
   bucket = var.state_bucket
-
+  force_destroy = true  # Allows deletion even if not empty
   tags = {
     Name = "KOPS State Store"
   }
