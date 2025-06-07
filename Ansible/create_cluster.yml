@@ -1,143 +1,32 @@
 ---
-- name: Create Kubernetes cluster with KOPS
-  hosts: k8s_workers
+- name: Create Kubernetes Cluster with kOps
+  hosts: k8s
   become: yes
-  strategy: free
   vars_files:
-    - group_vars/all.yml
-  vars:
-    pem_path: "/home/ec2-user/proj-mdp-152-155/Ansible/my-instance.pem"
-    private_key_path: "/tmp/id_rsa"
-    public_key_path: "/tmp/id_rsa.pub"
-    kops_version: "1.28.0"
-    kops_download_path: "/usr/local/bin/kops"
-
+    - vars.yml
+  environment:
+    KOPS_STATE_STORE: "{{ kops_state_store }}"
   tasks:
-
-    - name: Convert PEM to SSH private/public keys (localhost)
-      delegate_to: localhost
-      run_once: true
+    - name: Export cluster config
       shell: |
-        openssl rsa -in "{{ pem_path }}" -out {{ private_key_path }}
-        chmod 600 {{ private_key_path }}
-        ssh-keygen -y -f {{ private_key_path }} > {{ public_key_path }}
-        chmod 644 {{ public_key_path }}
+        kops create cluster \
+          --name {{ kops_cluster_name }} \
+          --cloud aws \
+          --zones {{ zones }} \
+          --master-size {{ master_size }} \
+          --node-size {{ node_size }} \
+          --node-count {{ node_count }} \
+          --yes \
+          --state {{ kops_state_store }} \
+          --dns private \
+          --topology private
       args:
-        executable: /bin/bash
+        creates: "/home/ec2-user/.kube/config"
 
-    - name: Slurp private key from control node
-      delegate_to: localhost
-      run_once: true
-      slurp:
-        src: "{{ private_key_path }}"
-      register: slurped_private
-
-    - name: Slurp public key from control node
-      delegate_to: localhost
-      run_once: true
-      slurp:
-        src: "{{ public_key_path }}"
-      register: slurped_public
-
-    - name: Copy private key to remote nodes
-      copy:
-        content: "{{ slurped_private.content | b64decode }}"
-        dest: /root/.ssh/id_rsa
-        mode: '0600'
-
-    - name: Copy public key to remote nodes
-      copy:
-        content: "{{ slurped_public.content | b64decode }}"
-        dest: /root/.ssh/id_rsa.pub
-        mode: '0644'
-
-    - name: Install required packages
-      package:
-        name:
-          - curl
-          - unzip
-          - python3-pip
-        state: present
-      async: 300
-      poll: 15
-
-    - name: Install AWS CLI via pip
-      pip:
-        name: awscli
-        state: present
-      when: ansible_python.version.major == 3
-
-    - name: Download and install KOPS
-      block:
-        - name: Download KOPS binary
-          get_url:
-            url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
-            dest: /tmp/kops
-            mode: '0755'
-            timeout: 60
-          register: download_result
-          until: download_result is succeeded
-          retries: 3
-          delay: 10
-
-        - name: Install KOPS
-          copy:
-            src: /tmp/kops
-            dest: "{{ kops_download_path }}"
-            remote_src: yes
-            mode: '0755'
-            owner: root
-            group: root
-
-      rescue:
-        - name: Clean up on failure
-          file:
-            path: /tmp/kops
-            state: absent
-          ignore_errors: yes
-
-    - name: Delete existing kops cluster if any (run once)
-      delegate_to: "{{ groups['k8s_workers'][0] }}"
-      run_once: yes
+    - name: Wait for cluster to be ready
       shell: |
-        export KOPS_STATE_STORE={{ state_store }}
-        {{ kops_download_path }} delete cluster --name={{ cluster_name }} --yes || true
-        aws s3 rm --recursive s3://{{ state_store | regex_replace('^s3://', '') }}/{{ cluster_name }} || true
-      environment:
-        AWS_DEFAULT_REGION: "{{ aws_region }}"
-
-    - name: Create Kubernetes cluster (run once)
-      delegate_to: "{{ groups['k8s_workers'][0] }}"
-      run_once: yes
-      shell: |
-        set -o pipefail
-        export KOPS_STATE_STORE={{ state_store }}
-        {{ kops_download_path }} create cluster \
-          --name={{ cluster_name }} \
-          --zones={{ zones | join(',') }} \
-          --node-count={{ node_count }} \
-          --control-plane-size={{ master_size }} \
-          --ssh-public-key=/root/.ssh/id_rsa.pub \
-          --yes 2>&1 | tee /tmp/kops_create.log
-      environment:
-        AWS_DEFAULT_REGION: "{{ aws_region }}"
-
-    - name: Update and apply the cluster config (run once)
-      delegate_to: "{{ groups['k8s_workers'][0] }}"
-      run_once: yes
-      shell: |
-        export KOPS_STATE_STORE={{ state_store }}
-        {{ kops_download_path }} update cluster --name={{ cluster_name }} --yes
-      environment:
-        AWS_DEFAULT_REGION: "{{ aws_region }}"
-
-    - name: Wait for cluster validation (run once)
-      delegate_to: "{{ groups['k8s_workers'][0] }}"
-      run_once: yes
-      command: "{{ kops_download_path }} validate cluster --wait 10m --name {{ cluster_name }}"
-      register: validation
-      until: validation.rc == 0
-      retries: 10
-      delay: 30
-      environment:
-        AWS_DEFAULT_REGION: "{{ aws_region }}"
+        sleep 120
+        until kops validate cluster --state {{ kops_state_store }}; do
+          echo "Waiting for cluster to be ready..."
+          sleep 30
+        done
