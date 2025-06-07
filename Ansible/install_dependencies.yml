@@ -32,8 +32,8 @@
 
     - name: Install kOps
       shell: |
-        curl -Lo kops https://github.com/kubernetes/kops/releases/download/v1.27.0/kops-linux-amd64
-        chmod +x kops && mv kops /usr/local/bin/
+        curl -Lo /usr/local/bin/kops https://github.com/kubernetes/kops/releases/download/v1.27.0/kops-linux-amd64
+        chmod +x /usr/local/bin/kops
       args:
         creates: /usr/local/bin/kops
 
