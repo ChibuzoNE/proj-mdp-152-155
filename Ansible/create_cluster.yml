@@ -22,34 +22,4 @@
       debug:
         msg: "kOps is installed at /usr/local/bin/kops"
 
-    - name: Create Kubernetes Cluster
-      shell: |
-        /usr/local/bin/kops create cluster \
-          --name {{ kops_cluster_name }} \
-          --cloud aws \
-          --zones {{ zones }} \
-          --master-size {{ master_size }} \
-          --node-size {{ node_size }} \
-          --node-count {{ node_count }} \
-          --yes \
-          --state {{ kops_state_store }} \
-          --dns private \
-          --topology private
-      args:
-        creates: "/home/{{ ansible_user }}/.kube/config"
-
-    # Optional: Wait and validate cluster (commented for now)
-    # - name: Wait before validating the cluster
-    #   pause:
-    #     minutes: 2
-
-    # - name: Validate Cluster
-    #   shell: |
-    #     /usr/local/bin/kops validate cluster \
-    #       --name {{ kops_cluster_name }} \
-    #       --state {{ kops_state_store }}
-    #   register: validation
-    #
-    # - name: Show validation result
-    #   debug:
-    #     var: validation.stdout
+    - name: Create Kubernetes Clu
