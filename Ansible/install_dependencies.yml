@@ -38,4 +38,4 @@
         creates: /usr/local/bin/kops
 
     - name: Verify kOps
-      command: kops version
+      command: /usr/local/bin/kops version
