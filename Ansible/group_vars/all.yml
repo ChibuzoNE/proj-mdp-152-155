@@ -1,5 +1,5 @@
 aws_region: us-east-2
-kops_cluster_name: "k8s-example.com"
+kops_cluster_name: "k8s-prod.k8s.local"
 #cluster_name: k8s-prod.k8s.local
 kops_state_store: s3://chybuz1-k8s-bucket
 zones: "us-east-2a,us-east-2b"
