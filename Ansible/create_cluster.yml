@@ -8,12 +8,12 @@
     KOPS_STATE_STORE: "{{ kops_state_store }}"
   tasks:
 
-    - name: Verify kOps binary exists
+    - name: "Verify kOps binary exists"
       stat:
         path: /usr/local/bin/kops
       register: kops_bin
 
-    - name: Fail if kOps is not installed
+    - name: "Fail if kOps is not installed"
       fail:
         msg: "kOps is not installed at /usr/local/bin/kops"
       when: not kops_bin.stat.exists
@@ -22,4 +22,18 @@
       debug:
         msg: "kOps is installed at /usr/local/bin/kops"
 
-    - name: Create Kubernetes Clu
+    - name: "Create Kubernetes Cluster"
+      shell: |
+        /usr/local/bin/kops create cluster \
+          --name {{ kops_cluster_name }} \
+          --cloud aws \
+          --zones {{ zones }} \
+          --master-size {{ master_size }} \
+          --node-size {{ node_size }} \
+          --node-count {{ node_count }} \
+          --yes \
+          --state {{ kops_state_store }} \
+          --dns private \
+          --topology private
+      args:
+        creates: "/home/{{ ansible_user }}/.kube/config"
