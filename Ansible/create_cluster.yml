@@ -7,9 +7,24 @@
   environment:
     KOPS_STATE_STORE: "{{ kops_state_store }}"
   tasks:
-    - name: Export cluster config
+
+    - name: Verify kOps binary exists
+      stat:
+        path: /usr/local/bin/kops
+      register: kops_bin
+
+    - name: Fail if kOps is not installed
+      fail:
+        msg: "kOps is not installed at /usr/local/bin/kops"
+      when: not kops_bin.stat.exists
+
+    - name: Debug: Show kOps binary info
+      debug:
+        msg: "kOps is installed at /usr/local/bin/kops"
+
+    - name: Create Kubernetes Cluster
       shell: |
-        kops create cluster \
+        /usr/local/bin/kops create cluster \
           --name {{ kops_cluster_name }} \
           --cloud aws \
           --zones {{ zones }} \
@@ -21,12 +36,20 @@
           --dns private \
           --topology private
       args:
-        creates: "/home/ec2-user/.kube/config"
+        creates: "/home/{{ ansible_user }}/.kube/config"
 
-    - name: Wait for cluster to be ready
-      shell: |
-        sleep 120
-        until kops validate cluster --state {{ kops_state_store }}; do
-          echo "Waiting for cluster to be ready..."
-          sleep 30
-        done
+    # Optional: Wait and validate cluster (commented for now)
+    # - name: Wait before validating the cluster
+    #   pause:
+    #     minutes: 2
+
+    # - name: Validate Cluster
+    #   shell: |
+    #     /usr/local/bin/kops validate cluster \
+    #       --name {{ kops_cluster_name }} \
+    #       --state {{ kops_state_store }}
+    #   register: validation
+    #
+    # - name: Show validation result
+    #   debug:
+    #     var: validation.stdout
