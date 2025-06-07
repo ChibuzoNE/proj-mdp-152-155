@@ -3,7 +3,7 @@
   hosts: k8s
   become: yes
   vars_files:
-    - vars.yml
+    - group_vars/all.yml
   environment:
     KOPS_STATE_STORE: "{{ kops_state_store }}"
   tasks:
