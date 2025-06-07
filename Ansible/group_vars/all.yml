@@ -1,9 +1,13 @@
 aws_region: us-east-2
-cluster_name: k8s-prod.k8s.local
+kops_cluster_name: "k8s.example.com"
+#cluster_name: k8s-prod.k8s.local
 state_store: s3://chybuz1-k8s-bucket
 zones:
   - us-east-2a
   - us-east-2b
 node_count: 2
-node_size: t3.micro
-master_size: t3.micro
+node_size: t2.micro
+master_size: t2.micro
+
+
+
