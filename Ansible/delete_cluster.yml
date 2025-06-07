@@ -7,8 +7,32 @@
   environment:
     KOPS_STATE_STORE: "{{ kops_state_store }}"
   tasks:
-    - name: Delete cluster
-      shell: kops delete cluster --name {{ kops_cluster_name }} --yes
 
+    - name: "Ensure kops binary exists"
+      stat:
+        path: /usr/local/bin/kops
+      register: kops_stat
 
+    - name: "Fail if kops is not installed"
+      fail:
+        msg: "kops is not installed at /usr/local/bin/kops"
+      when: not kops_stat.stat.exists
+
+    - name: "Debug: Show that kops was found"
+      debug:
+        msg: "kops binary found at /usr/local/bin/kops"
+
+    - name: "Delete cluster"
+      shell: "/usr/local/bin/kops delete cluster --name {{ kops_cluster_name }} --yes --state {{ kops_state_store }}"
+      register: delete_output
+      ignore_errors: yes
+
+    - name: "Show output of delete command"
+      debug:
+        var: delete_output.stdout_lines
+
+    - name: "Fail if deletion failed"
+      fail:
+        msg: "Cluster deletion failed: {{ delete_output.stderr }}"
+      when: delete_output.rc != 0
 
