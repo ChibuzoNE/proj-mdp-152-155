@@ -33,4 +33,3 @@ description = "Availability zone for the subnet"
 type        = string
 default     = "us-east-2a"
 }
-
