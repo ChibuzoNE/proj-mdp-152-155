@@ -1,16 +1,19 @@
 ---
-- name: Install Kubernetes tools
-  hosts: all
+- name: Install kOps and kubectl
+  hosts: k8s
   become: yes
+  vars_files:
+    - vars.yml
   tasks:
-
-    - name: Install unzip and curl
+    - name: Install base packages
       yum:
         name:
           - unzip
+          - wget
           - curl
+          - jq
+          - git
         state: present
-        update_cache: yes
 
     - name: Install AWS CLI v2
       shell: |
@@ -23,15 +26,16 @@
     - name: Install kubectl
       shell: |
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        mv kubectl /usr/local/bin/
+        chmod +x kubectl && mv kubectl /usr/local/bin/
       args:
         creates: /usr/local/bin/kubectl
 
-    - name: Install KOPS
+    - name: Install kOps
       shell: |
-        curl -LO https://github.com/kubernetes/kops/releases/download/v1.28.0/kops-linux-amd64
-        chmod +x kops-linux-amd64
-        mv kops-linux-amd64 /usr/local/bin/kops
+        curl -Lo kops https://github.com/kubernetes/kops/releases/download/v1.27.0/kops-linux-amd64
+        chmod +x kops && mv kops /usr/local/bin/
       args:
         creates: /usr/local/bin/kops
+
+    - name: Verify kOps
+      command: kops version
