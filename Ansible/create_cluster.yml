@@ -29,15 +29,15 @@
     
     - name: "Create Kubernetes Cluster (only if not exists)"
       shell: |
-      /usr/local/bin/kops create cluster \
-        --name {{ kops_cluster_name }} \
-        --cloud aws \
-        --zones {{ zones }} \
-        --master-size {{ master_size }} \
-        --node-size {{ node_size }} \
-        --node-count {{ node_count }} \
-        --yes \
-        --state {{ kops_state_store }} \
-        --dns private \
-        --topology private
+        /usr/local/bin/kops create cluster \
+          --name {{ kops_cluster_name }} \
+          --cloud aws \
+          --zones {{ zones }} \
+          --master-size {{ master_size }} \
+          --node-size {{ node_size }} \
+          --node-count {{ node_count }} \
+          --yes \
+          --state {{ kops_state_store }} \
+          --dns private \
+          --topology private
       when: kops_cluster_check.rc != 0
