@@ -2,9 +2,12 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')  // Jenkins secret
         IMAGE_NAME = 'calc-app'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"  // Unique tag per build
         DOCKERHUB_REPO = 'chibuzone/calc-app'
+        FULL_IMAGE = "${DOCKERHUB_REPO}:${IMAGE_TAG}"
+        LATEST_IMAGE = "${DOCKERHUB_REPO}:latest"
     }
 
     options {
@@ -12,33 +15,47 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
-                git branch: 'project-1', url: 'https://github.com/ChibuzoNE/proj-mdp-152-155.git'
+                git branch: 'project-3', url: 'https://github.com/ChibuzoNE/proj-mdp-152-155.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build -t $IMAGE_NAME:latest .
-                    docker tag $IMAGE_NAME:latest $DOCKERHUB_REPO:latest
-                '''
+                script {
+                    sh '''
+                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                        docker tag $IMAGE_NAME:$IMAGE_TAG $FULL_IMAGE
+                        docker tag $IMAGE_NAME:$IMAGE_TAG $LATEST_IMAGE
+                    '''
+                }
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
-                sh '''
-                    echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
-                    docker push $DOCKERHUB_REPO:latest
-                '''
+                script {
+                    sh '''
+                        echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
+                        docker push $FULL_IMAGE
+                        docker push $LATEST_IMAGE
+                    '''
+                }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f project-3/Ansible/K8s-deployment.yml'
+                script {
+                    // Update image in K8s deployment YAML dynamically before applying
+                    sh '''
+                        sed -i "s|image: .*|image: $FULL_IMAGE|g" project-3/k8s-deploy/k8s-deployment.yaml
+                        kubectl apply -f project-3/k8s/deployment.yaml
+                        kubectl apply -f project-3/k8s/service.yaml
+                    '''
+                }
             }
         }
     }
