@@ -56,9 +56,8 @@ pipeline {
                 script {
                     // Update image in K8s deployment YAML dynamically before applying
                     sh '''
-                        sed -i "s|image: .*|image: $FULL_IMAGE|g" project-3/k8s-deploy/k8s-deployment.yaml
-                        kubectl apply -f project-3/k8s/deployment.yaml
-                        kubectl apply -f project-3/k8s/service.yaml
+                        sed -i "s|image: .*|image: $FULL_IMAGE|g" project-3/k8s-deploy/k8s-deployment.yml
+                        kubectl apply -f project-3/k8s-deploy/k8s-deployment.yml
                     '''
                 }
             }
