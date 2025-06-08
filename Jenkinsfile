@@ -18,7 +18,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'project-3', url: 'https://github.com/ChibuzoNE/proj-mdp-152-155.git'
+                git branch: 'Project-3', url: 'https://github.com/ChibuzoNE/proj-mdp-152-155.git'
             }
         }
 
