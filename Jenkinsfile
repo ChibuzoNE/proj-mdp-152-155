@@ -25,10 +25,15 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
+                    // Option 1: Run with explicit sudo (requires sudo permissions for Jenkins user)
+                    // sh 'sudo docker build -t calc-app:latest .'
+                    
+                    // Option 2: Better solution - ensure Jenkins user is in docker group
                     sh '''
-                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                        docker tag $IMAGE_NAME:$IMAGE_TAG $FULL_IMAGE
-                        docker tag $IMAGE_NAME:$IMAGE_TAG $LATEST_IMAGE
+                        # Add Jenkins user to the docker group if not already
+                        sudo usermod -aG docker jenkins || true
+                        # Build the image
+                        docker build -t calc-app:latest .
                     '''
                 }
             }
