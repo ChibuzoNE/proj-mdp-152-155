@@ -6,6 +6,7 @@
     - group_vars/all.yml
   environment:
     KOPS_STATE_STORE: "{{ kops_state_store }}"
+
   tasks:
 
     - name: "Verify kOps binary exists"
@@ -23,21 +24,38 @@
         msg: "kOps is installed at /usr/local/bin/kops"
 
     - name: "Check if Kops cluster already exists"
-      shell: "/usr/local/bin/kops get cluster --name {{ kops_cluster_name }} --state {{ kops_state_store }}"
+      shell: >
+        /usr/local/bin/kops get cluster
+        --name {{ kops_cluster_name }}
+        --state {{ kops_state_store }}
       register: kops_cluster_check
-      ignore_errors: yes
-    
-    - name: "Create Kubernetes Cluster (only if not exists)"
-      shell: |
-        /usr/local/bin/kops create cluster \
-          --name {{ kops_cluster_name }} \
-          --cloud aws \
-          --zones {{ zones }} \
-          --master-size {{ master_size }} \
-          --node-size {{ node_size }} \
-          --node-count {{ node_count }} \
-          --yes \
-          --state {{ kops_state_store }} \
-          --dns private \
-          --topology private
+      ignore_errors: true
+      environment:
+        KOPS_STATE_STORE: "{{ kops_state_store }}"
+
+    - name: "Create Kubernetes Cluster (if not exists)"
+      shell: >
+        /usr/local/bin/kops create cluster
+        --name {{ kops_cluster_name }}
+        --cloud aws
+        --zones {{ zones }}
+        --master-size {{ master_size }}
+        --node-size {{ node_size }}
+        --node-count {{ node_count }}
+        --topology private
+        --dns private
+        --networking calico
+        --state {{ kops_state_store }}
       when: kops_cluster_check.rc != 0
+      environment:
+        KOPS_STATE_STORE: "{{ kops_state_store }}"
+
+    - name: "Update and build the cluster"
+      shell: >
+        /usr/local/bin/kops update cluster
+        --name {{ kops_cluster_name }}
+        --yes
+        --state {{ kops_state_store }}
+      when: kops_cluster_check.rc != 0
+      environment:
+        KOPS_STATE_STORE: "{{ kops_state_store }}"
