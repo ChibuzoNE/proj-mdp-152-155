@@ -9,15 +9,27 @@
 
   tasks:
 
-    - name: "Verify kOps binary exists"
+    - name: "Check if kOps binary exists"
       stat:
         path: /usr/local/bin/kops
       register: kops_bin
 
-    - name: "Fail if kOps is not installed"
+    - name: "Download kOps if not installed"
+      when: not kops_bin.stat.exists
+      get_url:
+        url: https://github.com/kubernetes/kops/releases/latest/download/kops-linux-amd64
+        dest: /usr/local/bin/kops
+        mode: '0755'
+
+    - name: "Verify kOps is installed"
+      stat:
+        path: /usr/local/bin/kops
+      register: kops_bin_final
+
+    - name: "Fail if kOps is still not installed"
       fail:
         msg: "kOps is not installed at /usr/local/bin/kops"
-      when: not kops_bin.stat.exists
+      when: not kops_bin_final.stat.exists
 
     - name: "Debug: Show kOps binary info"
       debug:
