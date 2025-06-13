@@ -6,6 +6,8 @@ zones: "us-east-2a,us-east-2b"
 node_count: 2
 node_size: t2.micro
 master_size: t2.micro
+kops_version: "1.28.4"
+
 
 
 
