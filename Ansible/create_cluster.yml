@@ -17,7 +17,7 @@
     - name: "Download kOps if not installed"
       when: not kops_bin.stat.exists
       get_url:
-        url: https://github.com/kubernetes/kops/releases/latest/download/kops-linux-amd64
+        url: "https://github.com/kubernetes/kops/releases/download/v{{ kops_version }}/kops-linux-amd64"
         dest: /usr/local/bin/kops
         mode: '0755'
 
