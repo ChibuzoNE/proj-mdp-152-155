@@ -94,7 +94,7 @@ resource "aws_route_table_association" "ec2_subnet_b_association" {
 # IAM Role for EC2
 # -----------------------
 resource "aws_iam_role" "kops_ec2_role" {
-  name = "new-terraform-v2"
+  name = "new-terraform"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
