@@ -51,7 +51,7 @@
         --name {{ kops_cluster_name }}
         --cloud aws
         --zones {{ zones }}
-        --master-size {{ master_size }}
+        --control-plane-size {{ master_size }}
         --node-size {{ node_size }}
         --node-count {{ node_count }}
         --topology private
