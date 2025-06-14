@@ -47,7 +47,7 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        sed -i "s|image: .*|image: $FULL_IMAGE|g" project-3/k8s-deploy/k8s-deployment.yml
+                        sed -i "s|image: .*|image: $FULL_IMAGE|g" Project-3/k8s-deploy/k8s-deployment.yml
                         kubectl apply -f Project-3/k8s-deploy/k8s-deployment.yml
                     '''
                 }
